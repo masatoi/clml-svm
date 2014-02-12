@@ -518,9 +518,9 @@
          (m (array-dimension A 1))
          (n (array-dimension A 0))
          (lda (max 1 m))
-         (ipiv (make-array (min m n) :element-type 'fixnum))
+         (ipiv (make-array (min m n) :element-type '(SIGNED-BYTE 32)))
          (lwork (* m n 2))
-         (work (make-array lwork :element-type 'double-float))
+         (work (make-array lwork :element-type 'fixnum))
          (info 0))
     (assert (= m n))
     (setq info 

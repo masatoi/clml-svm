@@ -1,6 +1,6 @@
 ;;; -*- Coding: utf-8; Mode: Lisp; Syntax: Common-Lisp; -*-
 
-(in-package :svm.wss3)
+(in-package :svm)
 
 ;; Vector which used in CLML have to be specialized to double-float.
 ;; This function makes CLML style vector from list.
@@ -11,7 +11,7 @@
       (setf (aref vec i) (* (nth i list) 1.0d0)))
     vec))
 
-(defun make-dataset (positive-set negative-set)
+(defun make-training-vector (positive-set negative-set)
   (let* ((n-of-posi-data (length positive-set))
 	 (n-of-nega-data (length negative-set))
 	 (product-array (make-array (+ n-of-posi-data n-of-nega-data)))
@@ -57,7 +57,7 @@
 			  (negative-set (apply #'append (wiz:remove-nth i splited-nega-set)))
 			  (positive-test-set (nth i splited-posi-set))
 			  (negative-test-set (nth i splited-nega-set))
-			  (training-vector (make-dataset positive-set negative-set))
+			  (training-vector (make-training-vector positive-set negative-set))
 			  (trained-svm (make-svm-learner training-vector kernel
 							 :c c :weight weight)))
 		     (test trained-svm positive-test-set negative-test-set)))

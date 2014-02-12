@@ -4,24 +4,30 @@
 ;;;Chih-Jen Lin. Department of Computer Science. National Taiwan University. 
 ;;;Joint work with Rong-En Fan and Pai-Hsuen Chen.
 
-
-(defpackage :svm.wss3
+(defpackage :svm
   (:use :cl
 	:hjs.util.meta
 	:hjs.util.vector
         :hjs.util.matrix)
-  (:export #:make-svm-learner
-	   #:load-svm-learner
+  (:export #:make-svm-model
+	   #:load-svm-model
+	   #:save-svm-model
 	   #:make-linear-kernel
 	   #:make-rbf-kernel
 	   #:make-polynomial-kernel
 	   #:make-one-class-svm-kernel
 	   #:svm-validation
+	   #:make-scale-parameters
+	   #:autoscale
+	   #:cross-validation
+	   #:grid-search
+	   #:grid-search-by-cv
 	   ))
 
-(in-package svm.wss3)
+(in-package svm)
 
-;; (declaim (optimize speed (safety 0) (debug 1)))
+;#-sbcl (declaim (optimize speed (safety 0) (debug 1)))
+(declaim (optimize speed (safety 0) (debug 1)))
 
 (defparameter *eps* 1d-3)
 (defparameter *tau* 1d-12)
@@ -66,7 +72,6 @@
 (defmacro call-kernel-function-vectorized (kernel-function point1 point2s result &optional start end)
   `(call-kernel-function-vectorized-uncached ,kernel-function ,point1 ,point2s ,result ,start ,end))
 
-
 (defmacro define-kernel-function ((point1-var point2-var &optional (name :unknown)) &body body)
   (check-type point1-var symbol)
   (check-type point2-var symbol)
@@ -95,27 +100,24 @@
              (setf (aref ,result ,i) (locally ,@body))
                 finally
              (return ,result)))))))
+;;  e.g.
 
-#| e.g.
+;; (define-kernel-function (z-i z-j :linear)
+;;   (loop
+;;     for k of-type array-index below (1- (length z-i))
+;;     sum (* (aref z-i k) (aref z-j k))
+;;       into result of-type double-float
+;;     finally (return result)))
 
-(define-kernel-function (z-i z-j :linear)
-  (loop
-    for k of-type array-index below (1- (length z-i))
-    sum (* (aref z-i k) (aref z-j k))
-      into result of-type double-float
-    finally (return result)))
-
-(defun make-rbf-kernel (&key gamma)
-  (declare (type double-float gamma))
-  (assert (> gamma 0.0d0))
-  (define-kernel-function (z-i z-j :rbf)
-    (loop
-      for k of-type array-index below (1- (length z-i))
-      sum (expt (- (aref z-i k) (aref z-j k)) 2)
-        into result of-type double-float
-      finally (return (d-exp (* (- gamma) result))))))
-
-|#
+;; (defun make-rbf-kernel (&key gamma)
+;;   (declare (type double-float gamma))
+;;   (assert (> gamma 0.0d0))
+;;   (define-kernel-function (z-i z-j :rbf)
+;;     (loop
+;;       for k of-type array-index below (1- (length z-i))
+;;       sum (expt (- (aref z-i k) (aref z-j k)) 2)
+;;         into result of-type double-float
+;;       finally (return (d-exp (* (- gamma) result))))))
 
 ;;;; a circular list
 (defconstant +double-float-in-bytes+ 8)
@@ -642,15 +644,13 @@
         (values i j))))
   )
 
-
-
 (defun compute-b (training-vector kernel-function c weight alpha-array)
   (declare (type simple-vector training-vector)
            (type dvec alpha-array)
 	   (type kernel-function kernel-function)
 	   (type double-float c weight)
            (ignorable kernel-function))
-  
+
   (let ((label-index (1- (length (aref training-vector 0))))
 	(n (length alpha-array)))
     
@@ -681,8 +681,7 @@
                                                                       (svref training-vector i)
                                                                       (svref training-vector j))))
                           finally (return result2)))))
-        finally (return (/ result count))))))
-
+        finally (return (if (zerop count) 0d0 (/ result count)))))))
 
 ;;for check
 (defun print-b (training-vector kernel-function c weight alpha-array)
@@ -751,77 +750,75 @@
       1.0d0
       -1.0d0))
 
+(defclass svm-model ()
+  ((training-vector :accessor training-vector-of :initarg :training-vector :type simple-vector)
+   (kernel-function :accessor kernel-function-of :initarg :kernel-function :type kernel-function)
+   (alpha-array :accessor alpha-array-of :initarg :alpha-array :type dvec)
+   (b :accessor b-of :initarg :b :type double-float)))
 
-(defun make-discriminant-function0 (training-vector kernel-function alpha-array b)
-  (declare (ignorable kernel-function))
-  (let ((label-index (1- (length (svref training-vector 0)))))
-    (lambda (point)
-      (sign (+ (loop 
-                 for i below (length alpha-array)
-                 as a-i = (aref alpha-array i)
-                 unless (= 0.0d0 a-i)
-                   sum (* a-i
-                          (aref (svref training-vector i) label-index)
-                          (call-kernel-function-uncached kernel-function (svref training-vector i) point)))
-               b)))))
-
-
-(defun make-discriminant-function (training-vector kernel-function alpha-array b)
-  (declare (type simple-vector training-vector)
-	   (type kernel-function kernel-function)
-	   (type dvec alpha-array)
-	   (type double-float b)
-           (ignorable kernel-function))
-  
-  (let ((label-index (1- (length (svref training-vector 0)))))
-    
-    (declare (type fixnum label-index))
-    
-    (lambda (point)
-      (sign (+ (let ((result 0.0d0))
-                 (declare (type double-float result))  
-                 (loop 
-                   for i of-type fixnum below (length alpha-array)
-                   as a-i of-type double-float = (aref alpha-array i)
-                   unless (= 0.0d0 a-i)
-                     do (incf result
-                              (* a-i
-                                 (aref (the dvec (svref training-vector i)) label-index)
-                                 (call-kernel-function-uncached kernel-function (svref training-vector i) point))))
-                 result)
-               b)))))
-
-
-(defun make-svm-learner (training-vector kernel-function &key c (weight 1.0d0) file-name external-format cache-size-in-MB)
+(defun make-svm-model (training-vector kernel-function &key c (weight 1.0d0) cache-size-in-MB)
   (assert (plusp c))
   (assert (plusp weight))
   (let* ((c (coerce c 'double-float))
 	 (weight (coerce weight 'double-float))
 	 (alpha-array (qp-solver training-vector kernel-function c weight (* (or cache-size-in-MB 100) 1024 1024)))
 	 (b (compute-b training-vector kernel-function c weight alpha-array)))
-    (when (and file-name external-format)
-      (with-open-file (out file-name
-                           :external-format external-format
-                           :direction :output
-                           :if-exists :supersede
-                           :if-does-not-exist :create)
-	(write (list training-vector alpha-array b) :stream out)))
-    (make-discriminant-function training-vector kernel-function alpha-array b)))
+    (make-instance 'svm-model
+       :training-vector training-vector
+       :kernel-function kernel-function
+       :alpha-array alpha-array
+       :b b)))
 
+(defun discriminate (model point)
+  (let ((training-vector (training-vector-of model))
+	(kernel-function (kernel-function-of model))
+	(alpha-array (alpha-array-of model))
+	(b (b-of model))
+	(label-index (1- (length (svref (training-vector-of model) 0)))))
+    (declare (type simple-vector training-vector)
+	     (type kernel-function kernel-function)
+	     (type dvec alpha-array)
+	     (type double-float b)
+	     (ignorable kernel-function)
+	     (type fixnum label-index))
+    (sign (+ (let ((result 0.0d0))
+	       (declare (type double-float result))  
+	       (loop 
+		 for i of-type fixnum below (length alpha-array)
+		 as a-i of-type double-float = (aref alpha-array i)
+		 unless (= 0.0d0 a-i)
+		   do (incf result
+			    (* a-i
+			       (aref (the dvec (svref training-vector i)) label-index)
+			       (call-kernel-function-uncached kernel-function (svref training-vector i) point))))
+   	       result)
+	     b))))
 
-(defun load-svm-learner (file-name kernel-function &key external-format)
+(defun load-svm-model (file-name kernel-function)
   (let* ((material-list 
-	  (with-open-file (in file-name :external-format external-format :direction :input)
+	  (with-open-file (in file-name :direction :input)
 	    (read in)))
 	 (training-vector (first material-list))
 	 (alpha-array (specialize-vec (second material-list)))
 	 (b (third material-list)))
-    
     (loop 
       for i of-type fixnum below (length training-vector)
       do (setf (aref training-vector i) (specialize-vec (aref training-vector i))))
-    
-    (make-discriminant-function training-vector kernel-function alpha-array b)))
+    (make-instance 'svm-model
+       :training-vector training-vector
+       :kernel-function kernel-function
+       :alpha-array alpha-array
+       :b b)))
+
+(defun save-svm-model (file-name model)
+  (with-open-file (out file-name
+		       :direction :output
+		       :if-exists :supersede
+		       :if-does-not-exist :create)
+    (write (list (training-vector-of model)
+		 (alpha-array-of model)
+		 (b-of model)) :stream out)
+    nil))
 
 (defun sum-up (lst)
   (loop with alist
@@ -832,16 +829,6 @@
 	   (push (cons obj 1) alist))
       finally (return alist)))
 
-(defun svm-validation (svm-learner test-vector)
-  (let* ((n (length test-vector))
-	 (label-index (1- (length (svref test-vector 0))))
-	 (sum-up-list
-	  (sum-up (loop for i of-type fixnum below n
-                        collect (cons (funcall svm-learner (svref test-vector i))
-                                      (aref (the dvec (svref test-vector i)) label-index))))))
-    (values sum-up-list (accuracy sum-up-list))))
-
-
 (defun accuracy (sum-up-list)
   (loop for obj in sum-up-list
         as type = (first obj)
@@ -849,6 +836,15 @@
         if (= (car type) (cdr type))
           sum (cdr obj) into n
         finally (return (* 100.0d0 (/ n m)))))
+
+(defun svm-validation (svm-model test-vector)
+  (let* ((n (length test-vector))
+	 (label-index (1- (length (svref test-vector 0))))
+	 (sum-up-list
+	  (sum-up (loop for i of-type fixnum below n
+                        collect (cons (discriminate svm-model (svref test-vector i))
+                                      (aref (the dvec (svref test-vector i)) label-index))))))
+    (values sum-up-list (accuracy sum-up-list))))
 
 ;;for test
 (defun sample-vector (n)
@@ -868,3 +864,162 @@
         into result of-type double-float
       finally (return (d-exp (* (- gamma) result))))))
 
+;;; Autoscale
+
+(defun mean-vector (training-vector)
+  (let* ((data-dim (1- (array-dimension (aref training-vector 0) 0)))
+	 (data-size (length training-vector))
+	 (sum-v (make-array data-dim :element-type 'double-float :initial-element 0d0)))
+    (loop for datum across training-vector do
+      (loop for i from 0 to (1- data-dim) do
+	(incf (aref sum-v i) (aref datum i))))
+    (loop for i from 0 to (1- data-dim) do
+      (setf (aref sum-v i) (/ (aref sum-v i) data-size)))
+    sum-v))
+
+(defmacro square (x)
+  (let ((val (gensym)))
+    `(let ((,val ,x))
+       (* ,val ,val))))
+
+(defun standard-deviation-vector (training-vector)
+  (let* ((data-dim (1- (array-dimension (aref training-vector 0) 0)))
+	 (data-size (length training-vector))
+	 (sum-v (make-array data-dim :element-type 'double-float :initial-element 0d0))
+	 (ave-v (mean-vector training-vector)))
+    (loop for datum across training-vector do
+      (loop for i from 0 to (1- data-dim) do
+	(incf (aref sum-v i) (square (- (aref datum i) (aref ave-v i))))))
+    (loop for i from 0 to (1- data-dim) do
+      (setf (aref sum-v i) (sqrt (/ (aref sum-v i) data-size))))
+    sum-v))
+
+(defun min-max-vector (training-vector)
+  (let* ((data-dim (1- (array-dimension (aref training-vector 0) 0)))
+	 (data-size (length training-vector))
+	 (max-v (make-array data-dim :element-type 'double-float :initial-element 0d0))
+	 (min-v (make-array data-dim :element-type 'double-float :initial-element 0d0))
+	 (cent-v (make-array data-dim :element-type 'double-float :initial-element 0d0))
+	 (scale-v (make-array data-dim :element-type 'double-float :initial-element 0d0)))
+    ;; init
+    (loop for j from 0 to (1- data-dim) do
+      (let ((elem-0j (aref (aref training-vector 0) j)))
+	(setf (aref max-v j) elem-0j
+	      (aref min-v j) elem-0j)))
+    ;; calc min-v, max-v
+    (loop for i from 1 to (1- data-size) do
+      (loop for j from 0 to (1- data-dim) do
+	(let ((elem-ij (aref (aref training-vector i) j)))
+	  (when (< (aref max-v j) elem-ij) (setf (aref max-v j) elem-ij))
+	  (when (> (aref min-v j) elem-ij) (setf (aref min-v j) elem-ij)))))
+    ;; calc cent-v, scale-v
+    (loop for j from 0 to (1- data-dim) do
+      (setf (aref cent-v j) (/ (+ (aref max-v j) (aref min-v j)) 2.0d0)
+	    (aref scale-v j) (if (= (aref max-v j) (aref min-v j))
+			       1d0
+			       (/ (abs (- (aref max-v j) (aref min-v j))) 2d0))))
+    (values cent-v scale-v)))
+
+(defclass scale-parameters ()
+  ((centre-vector :accessor centre-vector-of :initarg :centre-vector :type dvec)
+   (scale-vector :accessor scale-vector-of :initarg :scale-vector :type dvec )))
+
+(defun make-scale-parameters (training-vector &key scaling-method)
+  (cond ((eq scaling-method :unit-standard-deviation)
+	 (make-instance 'scale-parameters
+	    :centre-vector (mean-vector training-vector)
+	    :scale-vector (standard-deviation-vector training-vector)))
+	(t
+	 (multiple-value-bind (cent-v scale-v)
+	     (min-max-vector training-vector)
+	   (make-instance 'scale-parameters
+	      :centre-vector cent-v
+	      :scale-vector scale-v)))))
+
+(defun autoscale (training-vector &key scale-parameters)
+  (let* ((scale-parameters (if scale-parameters scale-parameters
+			     (make-scale-parameters training-vector)))
+	 (data-dim (1- (array-dimension (aref training-vector 0) 0)))
+	 (data-size (length training-vector))	  
+	 (new-v (make-array data-size))
+	 (cent-v (centre-vector-of scale-parameters))
+	 (scale-v (scale-vector-of scale-parameters)))
+    (loop for i from 0 to (1- data-size) do
+      (let ((new-data-v (make-array (1+ data-dim) :element-type 'double-float :initial-element 0d0))
+	    (data-v (aref training-vector i)))
+	(loop for j from 0 to (1- data-dim) do	  
+	  (setf (aref new-data-v j) (/ (- (aref data-v j) (aref cent-v j)) (aref scale-v j))))
+	(setf (aref new-data-v data-dim) (aref data-v data-dim))
+	(setf (aref new-v i) new-data-v)))
+    (values new-v scale-parameters)))
+
+;;; Cross-Validation (N-fold)
+
+(defun split-training-vector-2part (test-start test-end training-vector sub-training-vector sub-test-vector)
+    (loop for i from 0 to (1- (length training-vector)) do
+      (cond ((< i test-start)
+	     (setf (aref sub-training-vector i) (aref training-vector i)))
+	    ((and (>= i test-start) (<= i test-end))
+	     (setf (aref sub-test-vector (- i test-start)) (aref training-vector i)))
+	    (t
+	     (setf (aref sub-training-vector (- i (1+ (- test-end test-start)))) (aref training-vector i))))))
+
+(defun average (list)
+  (/ (loop for i in list sum i) (length list)))
+
+(defun cross-validation (n training-vector kernel &key (c 10) (weight 1.0d0))
+  (let* ((bin-size (truncate (length training-vector) n))
+	 (sub-training-vector (make-array (- (length training-vector) bin-size)))
+	 (sub-test-vector (make-array bin-size))
+	 (accuracy-percentage-list
+	  (loop for i from 0 to (1- n) collect
+	    (progn
+	      (split-training-vector-2part (* i bin-size) (1- (* (1+ i) bin-size))
+					   training-vector sub-training-vector sub-test-vector)
+	      (let ((trained-svm (make-svm-model sub-training-vector kernel :c c :weight weight)))
+		(multiple-value-bind (useless accuracy-percentage)
+		    (svm-validation trained-svm sub-test-vector)
+		  (declare (ignore useless))
+		  accuracy-percentage))))))
+    (values (average accuracy-percentage-list)
+	    accuracy-percentage-list)))
+
+;;; Parameter range cited from Table 2 in paper "Working Set Selection Using Second Order Information for Training Support Vector Machines".
+;;; http://www.csie.ntu.edu.tw/~cjlin/papers/quadworkset.pdf
+(defun grid-search (training-vector test-vector)
+  (let ((accuracy-max 0d0) gamma-max C-max)
+    (format t "# gamma~AC~Aaccuracy~Atime~%" #\tab #\tab #\tab)
+    (loop for C-log from -5d0 to 15d0 by 2d0 do
+      (loop for gamma-log from 3d0 downto -15d0 by 2d0 do
+	(let* ((start-time (get-internal-real-time))
+	       (model (make-svm-model training-vector (make-rbf-kernel :gamma (expt 2d0 gamma-log)) :C (expt 2d0 C-log))))
+	  (multiple-value-bind (useless accuracy)
+	      (svm-validation model test-vector)
+	    (declare (ignore useless))
+	    (format t "~f~A~f~A~f~A~f~%" gamma-log #\tab C-log #\tab accuracy #\tab (/ (- (get-internal-real-time) start-time) 1000.0))
+	    (when (> accuracy accuracy-max)
+	      (setf accuracy-max accuracy
+		    gamma-max (expt 2d0 gamma-log)
+		    C-max (expt 2d0 C-log))))))
+      (format t "~%"))
+  (values accuracy-max gamma-max C-max)))
+
+(defun grid-search-by-cv (n training-vector)
+  (let ((cv-max 0d0) gamma-max C-max)
+    (format t "# gamma~AC~Aaccuracy~Atime~%" #\tab #\tab #\tab)
+    (loop for C-log from -5d0 to 15d0 by 2d0 do
+      (loop for gamma-log from 3d0 downto -15d0 by 2d0 do
+	(let* ((start-time (get-internal-real-time))
+	       (cv-result (cross-validation n training-vector (make-rbf-kernel :gamma (expt 2d0 gamma-log)) :C (expt 2d0 C-log))))
+	  (format t "~f~A~f~A~f~A~f~%" gamma-log #\tab C-log #\tab cv-result #\tab (/ (- (get-internal-real-time) start-time) 1000.0))
+	  (when (> cv-result cv-max)
+	    (setf cv-max cv-result
+		  gamma-max (expt 2d0 gamma-log)
+		  C-max (expt 2d0 C-log)))))
+      (format t "~%"))
+    (values cv-max gamma-max C-max)))
+
+;; (sb-sprof:with-profiling (:max-samples 1000 :report :flat :loop nil)
+;;   (grid-search 5 training-vector))
+
+;;; TODO: make sub-training-vectors first, and reuse it. Avoid many make-array.

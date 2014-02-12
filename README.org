@@ -1,6 +1,19 @@
-** Support-Vector-Machine
-   サポートベクターマシンの package
-*** make-svm-learner (training-vector kernel-function &key c (weight 1.0) file-name external-format cache-size-in-MB)
+* clml-svm
+  A SVM (Support Vector Machine) implementation which picked out from Common Lisp Machine Learning(clml).
+  
+** How to use
+   First, you should construct a training vector which is simple-array.
+   The elements of training vector is also simple-array which has double-float elements.
+   It should contain datapoint values and a correct label (+1.0 or -1.0) for learning.
+
+   Secondly, you should select or define its kernel-function which means distance between two datapoints.
+   Linear-kernel, RBF-kernel and polynomial-kernel are predefined.
+   If you want to define own kernel function, it requires two datapoint arguments and return a positive double-float value.
+
+   And then, 
+   
+
+** make-svm-learner (training-vector kernel-function &key c (weight 1.0) file-name external-format cache-size-in-MB)
 - return: <Closure>, C-SVM
 - arguments:
  - training-vector : (SIMPLE-ARRAY DOUBLE-FLOAT (* ))からなる(SIMPLE-ARRAY T (* )),
@@ -14,29 +27,29 @@
 - reference: Working Set Selection Using Second Order Information for Training SVM.
             Chih-Jen Lin.
             Joint work with Rong-En Fan and Pai-Hsuen Chen.
-*** load-svm-learner (file-name kernel-function &key external-format)
+** load-svm-learner (file-name kernel-function &key external-format)
 - return: <Closure>, C-SVM
 - argumtns:
  - file-name : make-svm-learnerで作成したSVMを保存したファイル名
  - kernel-function :<Closure>, SVM作成時に使用したカーネル関数
  - external-format : 文字コード
-*** make-linear-kernel ()
+** make-linear-kernel ()
 - return: <Closure>, 線形カーネル
-*** make-rbf-kernel (&key gamma)
+** make-rbf-kernel (&key gamma)
 - return: <Closure>, RBFカーネル(ガウシアンカーネル)
 - aregumrns:
  - gamma : K(x,y) = exp(-gamma*|| x- y ||^2)
-*** make-polynomial-kernel (&key gamma r d)
+** make-polynomial-kernel (&key gamma r d)
 - return: <Closure>, 多項式カーネル
 - arguments:
  - gamma, r, d : K(x,y) = (gamma*(x・y)+r)^d
-*** svm-validation (svm-learner test-vector)
+** svm-validation (svm-learner test-vector)
 - テストデータに対するSVMの判別精度を評価する
 - return : 判別結果、判別精度
 - arguments:
  - svm-learner : SVM
  - test-vector : テストデータ
-*** QUOTE sample usage
+** QUOTE sample usage
 SVM.WSS3(44): (read-data-from-file "sample/bc-train-for-svm.csv"
 						 :type :csv
 						 :csv-type-spec (make-list 10 :initial-element 'double-float))
