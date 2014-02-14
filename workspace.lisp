@@ -10,10 +10,9 @@
 
 (defparameter a1a.model (make-svm-model a1a (make-rbf-kernel :gamma (expt 2d0 -2)) :c 1d0))
 
+;; (multiple-value-bind (scaled-vector scale-params)
+;;     (autoscale diabetes)
+;;   (defparameter diabetes.scaled scaled-vector)
+;;   (defparameter scale-parameters scale-params))
 
-(multiple-value-bind (scaled-vector scale-params)
-    (autoscale diabetes)
-  (defparameter diabetes.scaled scaled-vector)
-  (defparameter scale-parameters scale-params))
-
-(defparameter diabetes.model (make-svm-model diabetes.scaled (make-rbf-kernel :gamma (expt 2d0 -2)) :c 1d0))
+;; (defparameter diabetes.model (make-svm-model diabetes.scaled (make-rbf-kernel :gamma (expt 2d0 -2)) :c 1d0))

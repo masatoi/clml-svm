@@ -84,6 +84,8 @@ e.g.
                                       (nth-value 2 (sys:variable-information vector env))
                                       #+sbcl
                                       (nth-value 3 (sb-cltl2:variable-information vector env))
+				      #+ccl
+                                      (nth-value 3 (ccl:variable-information vector env))
                                       #+lispworks
                                       (nth-value 3 (cl::variable-information vector env))
                                       ))
@@ -182,6 +184,8 @@ e.g.
                                            (nth-value 2 (sys:variable-information vector env))
                                            #+sbcl
                                            (nth-value 3 (sb-cltl2:variable-information vector env))
+					   #+ccl
+					   (nth-value 3 (ccl:variable-information vector env))
                                            #+lispworks
                                            (nth-value 3 (cl::variable-information vector env))
                                            ))))

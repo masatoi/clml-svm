@@ -122,6 +122,8 @@
 ;;;; a circular list
 (defconstant +double-float-in-bytes+ 8)
 
+
+
 (defstruct head
   prev
   next
@@ -265,21 +267,35 @@
         (when (> i j)
           (swap i j))
         ;;
-        (loop for h of-type head = lru-head then (head-next h)
-              until (eq h lru-head)
-              when (> (head-len h) i)
-                do
-             (let ((h-data (head-data h)))
-               (declare (type dvec h-data))
-               (if (> (head-len h) j)
-                   (swap (aref h-data i) (aref h-data j))
-                   (progn
-                     (lru-delete cache h)
-                     (incf size (head-len h))
-                     (setf (head-data h) nil)
-                     (setf (head-len h) 0))))))))
-  )
+        #+ccl (loop for h = lru-head then (head-next h)
+		    until (eq h lru-head)
+		    when (> (head-len h) i)
+		      do
+		   (let ((h-data (head-data h)))
+		     (declare (type dvec h-data))
+		     (if (> (head-len h) j)
+		       (swap (aref h-data i) (aref h-data j))
+		       (progn
+			 (lru-delete cache h)
+			 (incf size (head-len h))
+			 (setf (head-data h) nil)
+			 (setf (head-len h) 0)))))
 
+	#-ccl (loop for h of-type head = lru-head then (head-next h)
+		    until (eq h lru-head)
+		    when (> (head-len h) i)
+		      do
+		   (let ((h-data (head-data h)))
+		     (declare (type dvec h-data))
+		     (if (> (head-len h) j)
+		       (swap (aref h-data i) (aref h-data j))
+		       (progn
+			 (lru-delete cache h)
+			 (incf size (head-len h))
+			 (setf (head-data h) nil)
+			 (setf (head-len h) 0)))))
+	)))
+  )
 
 ;;;;
 
