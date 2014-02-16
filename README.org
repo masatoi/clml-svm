@@ -1,19 +1,100 @@
 * clml-svm
-  A SVM (Support Vector Machine) implementation which picked out from Common Lisp Machine Learning(clml).
+  A SVM (Support Vector Machine) implementation which picked out from Common Lisp Machine Learning (CLML).
+  Currently, this library support only Soft margin SVM for 2-class classification.
   
-** How to use
-   First, you should construct a training vector which is simple-array.
-   The elements of training vector is also simple-array which has double-float elements.
-   It should contain datapoint values and a correct label (+1.0 or -1.0) for learning.
+** Usage
+   First, you should construct a training vector which is simple-array and its elements are double-float typed array.
+   A element of training-vector should contain datapoint values and a correct label at last element (+1.0 or -1.0).
+   e.g.
+#+BEGIN_SRC common-lisp
+#(#(5.0d0 4.0d0 4.0d0 5.0d0 7.0d0 10.0d0 3.0d0 2.0d0 1.0d0 1.0d0)
+  #(6.0d0 8.0d0 8.0d0 1.0d0 3.0d0 4.0d0 3.0d0 7.0d0 1.0d0 1.0d0)
+  #(8.0d0 10.0d0 10.0d0 8.0d0 7.0d0 10.0d0 9.0d0 7.0d0 1.0d0 -1.0d0)
+  ...)
+#+END_SRC
 
-   Secondly, you should select or define its kernel-function which means distance between two datapoints.
-   Linear-kernel, RBF-kernel and polynomial-kernel are predefined.
-   If you want to define own kernel function, it requires two datapoint arguments and return a positive double-float value.
+   You can also use clml-read-data (https://github.com/masatoi/clml-read-data).
+   This library allows to read sparse expression which is used in LIBSVM datasets (http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/).
+   e.g. if read from 'a1a data' (http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary.html#a1a), 
 
-   And then, 
+#+BEGIN_SRC common-lisp
+(require :clml-read-data)
+
+(defparameter training-vector (read-data:read-libsvm-data-from-file "/path/to/a1a"))
+(defparameter test-vector (read-data:read-libsvm-data-from-file "/path/to/a1a.t"))
+#+END_SRC
    
+   Secondly, you should select or define kernel-function. 
+   Linear-kernel, RBF-kernel and polynomial-kernel are predefined.
 
-** make-svm-learner (training-vector kernel-function &key c (weight 1.0) file-name external-format cache-size-in-MB)
+#+BEGIN_SRC common-lisp
+(defparameter kernel (make-rbf-kernel :gamma 0.0078125d0))
+#+END_SRC
+
+   And then, make model object and train using 'make-svm-model' function.
+   C parameter means penalty for invasion of margin.
+   If C has sufficiently big value, the model is similar to Hard margin SVM.
+
+#+BEGIN_SRC common-lisp
+(defparameter model (make-svm-model training-vector kernel :C 4.0d0))
+#+END_SRC
+
+   You can now make prediction or validation for test dataset.
+   'cross-validation' function performs N-fold cross validation.
+
+#+BEGIN_SRC common-lisp
+(discriminate model (aref test-vector 0))
+; => 1.0d0
+
+(svm-validation model test-vector)
+; => (((-1.0d0 . 1.0d0) . 3305) ((1.0d0 . 1.0d0) . 4141) ((-1.0d0 . -1.0d0) . 21956) ((1.0d0 . -1.0d0) . 1554)),
+;    84.30352758754361d0
+
+(cross-validation 3 training-vector kernel :C 4.0d0)
+; => 83.17757009345794d0,
+;    (82.80373831775701d0 82.05607476635514d0 84.67289719626169d0)
+#+END_SRC
+   
+   As described above, in case of using RBF-kernel, you should determine meta-parameter gamma and C.
+   Although it take a time, you can use 'grid-search' function which automatically determine gamma and C.
+
+#+BEGIN_SRC common-lisp
+(grid-search training-vector test-vector)
+; => 84.413360899341d0 (best accuracy),
+;    0.0078125d0 (gamma),
+;    8.0d0 (C)
+
+;; cross-validation version
+(grid-search-by-cv 3 training-vector)
+; => 83.86292834890965d0,
+;    1.220703125d-4,
+;    512.0d0
+#+END_SRC
+
+** Supported CL implementations
+We're supporting only ANSI Common Lisp.
+
+- Allegro CL 9.0 (non-SMP) Enterprise 32 Edition (ANSI mode, any platforms)
+- Allegro CL 9.0 (non-SMP) Enterprise 64 Edition (ANSI mode, any platforms)
+- lispworks-6-0-0-amd64-linux
+- lispworks-6-0-0-x86-linux
+- sbcl-1.0.28-x86-64-linux
+- Clozure CL 1.9
+
+** Licensing
+
+CLML is licensed under the terms of the Lisp Lesser GNU Public License, known as the LLGPL and distributed with CLML as the file "LICENSE".
+The LLGPL consists of a preamble and the LGPL, which is distributed with CLML as the file "LGPL".
+Where these conflict, the preamble takes precedence.
+
+The LGPL is also available online at:  http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+
+The LLGPL is also available online at:  http://opensource.franz.com/preamble.html
+
+
+
+
+*** make-svm-learner (training-vector kernel-function &key c (weight 1.0) file-name external-format cache-size-in-MB)
 - return: <Closure>, C-SVM
 - arguments:
  - training-vector : (SIMPLE-ARRAY DOUBLE-FLOAT (* ))からなる(SIMPLE-ARRAY T (* )),
@@ -27,6 +108,23 @@
 - reference: Working Set Selection Using Second Order Information for Training SVM.
             Chih-Jen Lin.
             Joint work with Rong-En Fan and Pai-Hsuen Chen.
+
+*** make-svm-model (training-vector kernel-function &key (c 1.0d0) (weight 1.0d0) cache-size-in-MB)
+- return: <svm-model>
+- arguments:
+ - training-vector: (SIMPLE-ARRAY DOUBLE-FLOAT (* ))からなる(SIMPLE-ARRAY T (* )),
+                      データ形式は、最終列が学習用のラベル(+1.0または-1.0)
+ - kernel-function: <Closure> 
+ - c : ソフトマージンSVMのペナルティ・パラメータ
+ - weight : 負例(-1クラス)に対する重みづけパラメータ、デフォルトは1.0
+ - file-name : 作成したSVMを保存するためのファイル名
+ - external-format : 文字コード
+ - cache-size-in-MB : cache size の指定 (default 100)
+- reference: Working Set Selection Using Second Order Information for Training SVM.
+            Chih-Jen Lin.
+            Joint work with Rong-En Fan and Pai-Hsuen Chen.
+
+
 ** load-svm-learner (file-name kernel-function &key external-format)
 - return: <Closure>, C-SVM
 - argumtns:

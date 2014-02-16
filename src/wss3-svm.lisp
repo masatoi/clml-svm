@@ -772,7 +772,7 @@
    (alpha-array :accessor alpha-array-of :initarg :alpha-array :type dvec)
    (b :accessor b-of :initarg :b :type double-float)))
 
-(defun make-svm-model (training-vector kernel-function &key c (weight 1.0d0) cache-size-in-MB)
+(defun make-svm-model (training-vector kernel-function &key (c 1.0d0) (weight 1.0d0) cache-size-in-MB)
   (assert (plusp c))
   (assert (plusp weight))
   (let* ((c (coerce c 'double-float))

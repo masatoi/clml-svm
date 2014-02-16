@@ -2,7 +2,7 @@
 
 (defsystem "clml-svm"
   :description "A Soft Margin SVM library which picked out from Common Lisp Machine Learning(clml)."
-  :licence "LGPL"
+  :licence "LLGPL"
   :encoding :utf-8
   :depends-on (:lapack :iterate :wiz-util)
   :components (
