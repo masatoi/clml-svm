@@ -19,6 +19,7 @@
 	   #:svm-validation
 	   #:make-scale-parameters
 	   #:autoscale
+	   #:autoscale-datum
 	   #:cross-validation
 	   #:grid-search
 	   #:grid-search-by-cv
@@ -968,6 +969,18 @@
 	(setf (aref new-data-v data-dim) (aref data-v data-dim))
 	(setf (aref new-v i) new-data-v)))
     (values new-v scale-parameters)))
+
+;; dimension of datum contains the target column so that it can be input of discriminate function. 
+;; and target column will be ignored in this function.
+(defun autoscale-datum (datum scale-parameters)
+  (let* ((datum-dim (length datum))
+	 (new-datum (make-array datum-dim :element-type 'double-float))
+	 (cent-v (centre-vector-of scale-parameters))
+	 (scale-v (scale-vector-of scale-parameters)))
+    (loop for i from 0 to (- datum-dim 2) do
+      (setf (aref new-datum i) (/ (- (aref datum i) (aref cent-v i)) (aref scale-v i))))
+    (setf (aref new-datum (1- datum-dim)) (aref datum (1- datum-dim)))
+    new-datum))
 
 ;;; Cross-Validation (N-fold)
 
