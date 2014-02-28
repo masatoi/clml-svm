@@ -16,6 +16,7 @@
 	   #:make-rbf-kernel
 	   #:make-polynomial-kernel
 	   #:make-one-class-svm-kernel
+	   #:discriminate
 	   #:svm-validation
 	   #:make-scale-parameters
 	   #:autoscale
