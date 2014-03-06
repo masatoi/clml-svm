@@ -4,7 +4,7 @@
   :description "A Soft Margin SVM library which picked out from Common Lisp Machine Learning(clml)."
   :licence "LLGPL"
   :encoding :utf-8
-  :depends-on (:lapack :iterate)
+  :depends-on (:lapack :iterate :cl-ppcre)
   :components (
 	       (:file "src/utils" :depends-on ())
 	       (:file "src/vector" :depends-on ("src/utils"))
