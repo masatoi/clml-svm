@@ -8,7 +8,7 @@
   (:use :cl
 	:hjs.util.meta
 	:hjs.util.vector
-        :hjs.util.matrix)
+	)
   (:export #:make-svm-model
 	   #:load-svm-model
 	   #:save-svm-model
@@ -1015,6 +1015,29 @@
     (values (average accuracy-percentage-list)
 	    accuracy-percentage-list)))
 
+;;; Slide-window-Validation
+
+(defun slide-window-validation (training-window-size test-window-size shift-size
+				training-vector kernel &key (c 10) (weight 1.0d0))
+  (assert (> (length training-vector) (+ training-window-size test-window-size)))
+  (let* ((sub-training-vector (make-array training-window-size))
+	 (sub-test-vector (make-array test-window-size)))
+    (labels ((iter (accuracy-percentage-list current-index)
+	       (if (> (+ current-index training-window-size test-window-size) (length training-vector))
+		 (nreverse accuracy-percentage-list)
+		 (progn
+		   (loop for i from 0 to (1- training-window-size) do
+		     (setf (aref sub-training-vector i) (aref training-vector (+ i current-index))))
+		   (loop for i from 0 to (1- test-window-size) do
+		     (setf (aref sub-test-vector i) (aref training-vector (+ i current-index training-window-size))))
+		   (let ((trained-svm (make-svm-model sub-training-vector kernel :c c :weight weight)))
+		     (multiple-value-bind (useless accuracy-percentage)
+			 (svm-validation trained-svm sub-test-vector)
+		       (declare (ignore useless))
+		       (iter (cons accuracy-percentage accuracy-percentage-list)
+			     (+ current-index shift-size))))))))
+      (iter nil 0))))
+
 ;;; Parameter range cited from Table 2 in paper "Working Set Selection Using Second Order Information for Training Support Vector Machines".
 ;;; http://www.csie.ntu.edu.tw/~cjlin/papers/quadworkset.pdf
 (defun grid-search (training-vector test-vector)
@@ -1052,46 +1075,3 @@
 
 ;; (sb-sprof:with-profiling (:max-samples 1000 :report :flat :loop nil)
 ;;   (grid-search 5 training-vector))
-
-;;; Read libsvm data
-
-(defun inspect-libsvm-data (data-path)
-  (with-open-file (f data-path :direction :input)
-    (let ((cnt 0) (dim 0))
-      (loop
-	(let ((read-data (read-line f nil nil)))
-	  (if read-data
-	    (progn
-	      (incf cnt)
-	      (dolist (index-num-pair-str (cdr (ppcre:split "\\s+" read-data)))
-		(let* ((index-num-pair (ppcre:split #\: index-num-pair-str))
-		       (current-dim (parse-integer (car index-num-pair))))
-		  (when (< dim current-dim)
-		    (setf dim current-dim)))))
-	    (return))))
-      (values cnt dim))))
-
-(defun read-libsvm-data-from-file (data-path &key data-dimension data-size)
-  (when (or (null data-dimension) (null data-size))
-    (multiple-value-bind (cnt dim)
-	(inspect-libsvm-data data-path)
-      (setf data-dimension dim
-	    data-size cnt)))
-
-  (let ((v (make-array data-size)))
-    (with-open-file (f data-path :direction :input)
-      (loop for i from 0 to (1- data-size) do
-	(let* ((read-data (read-line f))
-	       (dv (make-array (1+ data-dimension) :element-type 'double-float :initial-element 0d0))
-	       (d (ppcre:split "\\s+" read-data))
-	       (index-num-alist
-		(mapcar (lambda (index-num-pair-str)
-			  (let ((index-num-pair (ppcre:split #\: index-num-pair-str)))
-			    (list (parse-integer (car index-num-pair))
-				  (coerce (parse-number:parse-number (cadr index-num-pair)) 'double-float))))
-			(cdr d))))
-	  (setf (aref dv data-dimension) (coerce (parse-integer (car d)) 'double-float))
-	  (dolist (index-num-pair index-num-alist)
-	    (setf (aref dv (1- (car index-num-pair))) (cadr index-num-pair)))
-	  (setf (aref v i) dv))))
-    v))

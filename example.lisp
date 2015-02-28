@@ -1,33 +1,5 @@
 ;;; -*- Coding: utf-8; Mode: Lisp; Syntax: Common-Lisp; -*-
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Hard Margin SVM ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; (in-package :svm.mu)
-
-;; ;; Obtain training dataset. Note that number must be double-float.
-;; (defparameter *positive-set*
-;;   '((8.0d0 8.0d0) (8.0d0 20.0d0) (8.0d0 44.0d0) (8.0d0 56.0d0) (12.0d0 32.0d0) (16.0d0 16.0d0) (16.0d0 48.0d0)
-;;     (24.0d0 20.0d0) (24.0d0 32.0d0) (24.0d0 44.0d0) (28.0d0 8.0d0) (32.0d0 52.0d0) (36.0d0 16.0d0)))
-
-;; (defparameter *negative-set*
-;;   '((36.0d0 24.0d0) (36.0d0 36.0d0) (44.0d0 8.0d0) (44.0d0 44.0d0) (44.0d0 56.0d0)
-;;     (48.0d0 16.0d0) (48.0d0 28.0d0) (56.0d0 8.0d0) (56.0d0 44.0d0) (56.0d0 52.0d0)))
-
-;; ;; Train SVM model with linear kernel.
-;; (defparameter linear-fcn
-;;   (svm +linear-kernel+ *positive-set* *negative-set*))
-
-;; ;; Make prediction with the trained SVM model.
-;; (funcall linear-fcn (car *positive-set*))
-;; (mapcar linear-fcn (append *positive-set* *negative-set*))
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Soft Margin SVM ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 (in-package :svm)
 
 (defparameter *positive-set*
@@ -78,18 +50,18 @@
   (let ((training-vector (make-array (+ (length positive-set) (length negative-set)))))
     (loop for i from 0 to (1- (length positive-set))
 	  for v in positive-set do
-      (setf (aref training-vector i) (make-array (1+ (length v)) :element-type 'double-float :initial-contents (append1 v 1.0d0))))
+      (setf (aref training-vector i) (make-array (1+ (length v)) :element-type 'double-float :initial-contents (wiz:append1 v 1.0d0))))
     (loop for i from (length positive-set) to (1- (+ (length positive-set) (length negative-set)))
 	  for v in negative-set do
-      (setf (aref training-vector i) (make-array (1+ (length v)) :element-type 'double-float :initial-contents (append1 v -1.0d0))))
+      (setf (aref training-vector i) (make-array (1+ (length v)) :element-type 'double-float :initial-contents (wiz:append1 v -1.0d0))))
     training-vector))
 
 (defparameter training-vector (make-training-vector *positive-set* *negative-set*))
 (defparameter test-vector (make-training-vector *positive-set-test* *negative-set-test*))
 
-(defparameter trained-svm (make-svm-learner training-vector
-					    (make-rbf-kernel :gamma 0.05)
-					    :c 10))
+(defparameter trained-svm (make-svm-model training-vector
+					  (make-rbf-kernel :gamma 0.05)
+					  :c 10))
 
 (svm-validation trained-svm test-vector)
 
@@ -247,3 +219,28 @@
 	     n)))
     (format stream "Average validity: ~f~%" average-validity)
     average-validity))
+
+
+;;; Read libsvm data
+
+(ql:quickload :cl-ppcre)
+(ql:quickload :parse-number)
+
+(defun read-libsvm-data-from-file (data-path data-dimension data-size)
+  (let ((v (make-array data-size)))
+    (with-open-file (f data-path :direction :input)
+      (loop for i from 0 to (1- data-size) do
+	(let* ((read-data (read-line f))
+	       (dv (make-array (1+ data-dimension) :element-type 'double-float :initial-element 0d0))
+	       (d (ppcre:split "\\s+" read-data))
+	       (index-num-alist
+		(mapcar (lambda (index-num-pair-str)
+			  (let ((index-num-pair (ppcre:split #\: index-num-pair-str)))
+			    (list (parse-integer (car index-num-pair))
+				  (coerce (parse-number:parse-number (cadr index-num-pair)) 'double-float))))
+			(cdr d))))
+	  (setf (aref dv data-dimension) (coerce (parse-integer (car d)) 'double-float))
+	  (dolist (index-num-pair index-num-alist)
+	    (setf (aref dv (1- (car index-num-pair))) (cadr index-num-pair)))
+	  (setf (aref v i) dv))))
+    v))

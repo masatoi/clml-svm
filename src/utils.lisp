@@ -32,8 +32,6 @@
 
 (in-package :hjs.util.meta)
 
-(setf iterate::*always-declare-variables* t)
-
 (deftype dvec () '(simple-array double-float (*)))
 
 (deftype cvec () '(simple-array simple-string (*)))
