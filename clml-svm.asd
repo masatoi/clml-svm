@@ -1,4 +1,9 @@
+;;; -*- coding:utf-8; mode: lisp; syntax: common-lisp -*-
+
+(in-package :cl-user)
+
 (defpackage clml-svm-asd (:use :cl :asdf))
+
 (in-package :clml-svm-asd)
 
 (defsystem "clml-svm"

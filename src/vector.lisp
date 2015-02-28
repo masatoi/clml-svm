@@ -1,4 +1,6 @@
-;;; -*- mode: lisp; syntax: common-lisp -*-
+;;; -*- coding:utf-8; mode: lisp; syntax: common-lisp -*-
+
+(in-package :cl-user)
 
 (defpackage :hjs.util.vector
   (:use :cl

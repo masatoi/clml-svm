@@ -1,8 +1,12 @@
+;;; -*- coding:utf-8; mode: lisp; syntax: common-lisp -*-
+
 ;;;Support Vector Machine Package using SMO-type algorithm
 ;;;Abe Yusuke,Jianshi Huang. 2010 June
 ;;;Reference: Working Set Selection Using Second Order Information for Training SVM.
 ;;;Chih-Jen Lin. Department of Computer Science. National Taiwan University. 
 ;;;Joint work with Rong-En Fan and Pai-Hsuen Chen.
+
+(in-package :cl-user)
 
 (defpackage :svm
   (:use :cl
