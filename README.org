@@ -13,7 +13,7 @@ e.g.
   #(8.0d0 10.0d0 10.0d0 8.0d0 7.0d0 10.0d0 9.0d0 7.0d0 1.0d0 -1.0d0)
   ...)
 #+END_SRC
-You can also use READ-LIVSVM-DATA function to make dateset.
+You can also use READ-LIBSVM-DATA function to make dateset.
 This function allows to read sparse expression used in LIBSVM datasets (http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/).
 e.g. if read from 'a1a data' (http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary.html#a1a), 
 
