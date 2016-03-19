@@ -1,4 +1,4 @@
-;;; -*- coding:utf-8; mode: lisp; syntax: common-lisp -*-
+;;; -*- coding:utf-8; mode: lisp; -*-
 
 (in-package :cl-user)
 

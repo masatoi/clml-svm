@@ -1,4 +1,4 @@
-;;; -*- coding:utf-8; mode: lisp; syntax: common-lisp -*-
+;;; -*- coding:utf-8; mode: lisp;  -*-
 
 ;;;Support Vector Machine Package using SMO-type algorithm
 ;;;Abe Yusuke,Jianshi Huang. 2010 June
@@ -28,7 +28,7 @@
 	   #:cross-validation
 	   #:grid-search
 	   #:grid-search-by-cv
-	   #:read-libsvm-data-from-file
+	   #:read-libsvm-data
 	   ))
 
 (in-package svm)
@@ -860,6 +860,7 @@
           sum (cdr obj) into n
         finally (return (* 100.0d0 (/ n m)))))
 
+
 (defun svm-validation (svm-model test-vector)
   (let* ((n (length test-vector))
 	 (label-index (1- (length (svref test-vector 0))))
@@ -868,6 +869,7 @@
                         collect (cons (discriminate svm-model (svref test-vector i))
                                       (aref (the dvec (svref test-vector i)) label-index))))))
     (values sum-up-list (accuracy sum-up-list))))
+
 
 ;;for test
 (defun sample-vector (n)
@@ -1077,5 +1079,22 @@
       (format t "~%"))
     (values cv-max gamma-max C-max)))
 
-;; (sb-sprof:with-profiling (:max-samples 1000 :report :flat :loop nil)
-;;   (grid-search 5 training-vector))
+;;; Read libsvm data
+(defun read-libsvm-data (data-path data-dimension data-size)
+  (let ((v (make-array data-size)))
+    (with-open-file (f data-path :direction :input)
+      (loop for i from 0 to (1- data-size) do
+        (let* ((read-data (read-line f))
+               (dv (make-array (1+ data-dimension) :element-type 'double-float :initial-element 0d0))
+               (d (ppcre:split "\\s+" read-data))
+               (index-num-alist
+                (mapcar (lambda (index-num-pair-str)
+                          (let ((index-num-pair (ppcre:split #\: index-num-pair-str)))
+                            (list (parse-integer (car index-num-pair))
+                                  (coerce (parse-number:parse-number (cadr index-num-pair)) 'double-float))))
+                        (cdr d))))
+          (setf (aref dv data-dimension) (coerce (parse-integer (car d)) 'double-float))
+          (dolist (index-num-pair index-num-alist)
+            (setf (aref dv (1- (car index-num-pair))) (cadr index-num-pair)))
+          (setf (aref v i) dv))))
+    v))

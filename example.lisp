@@ -1,50 +1,14 @@
-;;; -*- Coding: utf-8; Mode: Lisp; Syntax: Common-Lisp; -*-
+;;; -*- Coding: utf-8; Mode: Lisp; -*-
 
 (in-package :svm)
 
-(defparameter *positive-set*
-  (append
-   (mapcar #'list
-	   (wiz:n-times-collect 1000 (wiz:random-normal :mean 2.5d0 :sd 1d0))
-	   (wiz:n-times-collect 1000 (wiz:random-normal :mean 5d0 :sd 3d0)))
-   (mapcar #'list
-	   (wiz:n-times-collect 1000 (wiz:random-normal :mean 17.5d0 :sd 1d0))
-	   (wiz:n-times-collect 1000 (wiz:random-normal :mean 5d0 :sd 3d0)))))
-
-(defparameter *negative-set*
-  (append
-   (mapcar #'list
-	   (wiz:n-times-collect 1000 (wiz:random-normal :mean 10d0 :sd 3d0))
-	   (wiz:n-times-collect 1000 (wiz:random-normal :mean 0.0d0 :sd 1d0)))
-   (mapcar #'list
-	   (wiz:n-times-collect 1000 (wiz:random-normal :mean 10d0 :sd 3d0))
-	   (wiz:n-times-collect 1000 (wiz:random-normal :mean 10.0d0 :sd 1d0)))))
-
-;; Plot training dataset
-(wiz:plot-lists (list (mapcar #'cadr *positive-set*)
-		      (mapcar #'cadr *negative-set*))
-		:x-lists (list (mapcar #'car *positive-set*)
-			       (mapcar #'car *negative-set*))
-		:style 'points)
-
-
-(defparameter *positive-set-test*
-  (append
-   (mapcar #'list
-	   (wiz:n-times-collect 1000 (wiz:random-normal :mean 0.0d0 :sd 0.5d0))
-	   (wiz:n-times-collect 1000 (wiz:random-normal :mean 2d0 :sd 1d0)))
-   (mapcar #'list
-	   (wiz:n-times-collect 1000 (wiz:random-normal :mean 4.0d0 :sd 0.5d0))
-	   (wiz:n-times-collect 1000 (wiz:random-normal :mean 2d0 :sd 1d0)))))
-
-(defparameter *negative-set-test*
-  (append
-   (mapcar #'list
-	   (wiz:n-times-collect 1000 (wiz:random-normal :mean 2d0 :sd 1d0))
-	   (wiz:n-times-collect 1000 (wiz:random-normal :mean 0.0d0 :sd 0.5d0)))
-   (mapcar #'list
-	   (wiz:n-times-collect 1000 (wiz:random-normal :mean 2d0 :sd 1d0))
-	   (wiz:n-times-collect 1000 (wiz:random-normal :mean 4.0d0 :sd 0.5d0)))))
+(defun random-normal (&key (mean 0d0) (sd 1d0))
+  (let ((alpha (random 1.0d0))
+	(beta  (random 1.0d0)))
+    (+ (* sd
+	  (sqrt (* -2 (log alpha)))
+	  (sin (* 2 pi beta)))
+       mean)))
 
 (defun make-training-vector (positive-set negative-set)
   (let ((training-vector (make-array (+ (length positive-set) (length negative-set)))))
@@ -56,14 +20,51 @@
       (setf (aref training-vector i) (make-array (1+ (length v)) :element-type 'double-float :initial-contents (wiz:append1 v -1.0d0))))
     training-vector))
 
+(defparameter *scale* 20000)
+
+(defparameter *positive-set*
+  (append
+   (loop repeat (/ *scale* 4) collect
+     (list (random-normal :mean 2.5d0 :sd 2d0)
+	   (random-normal :mean 5d0 :sd 3d0)))
+   (loop repeat (/ *scale* 4) collect
+     (list (random-normal :mean 17.5d0 :sd 2d0)
+	   (random-normal :mean 5d0 :sd 3d0)))
+   (loop repeat (/ *scale* 4) collect
+     (list (random-normal :mean 10d0 :sd 3d0)
+	   (random-normal :mean 0d0 :sd 2d0)))
+   (loop repeat (/ *scale* 4) collect
+     (list (random-normal :mean 10d0 :sd 3d0)
+	   (random-normal :mean 10d0 :sd 2d0)))))
+
+(defparameter *negative-set*
+  (append
+   (loop repeat *scale* collect
+     (list (random-normal :mean 10d0 :sd 2d0)
+	   (random-normal :mean 5d0 :sd 2d0)))))
+
 (defparameter training-vector (make-training-vector *positive-set* *negative-set*))
-(defparameter test-vector (make-training-vector *positive-set-test* *negative-set-test*))
 
-(defparameter trained-svm (make-svm-model training-vector
-					  (make-rbf-kernel :gamma 0.05)
-					  :c 10))
+(require 'sb-sprof)
 
-(svm-validation trained-svm test-vector)
+(sb-sprof:with-profiling (:max-samples 1000 :report :flat :loop nil)
+  (defparameter trained-svm (make-svm-model training-vector
+					    (make-rbf-kernel :gamma 0.05)
+					    :c 10)))
+
+  36.864 seconds of real time
+
+;; test by training-vector
+(svm-validation trained-svm training-vector)
+
+(ql:quickload :wiz-util)
+;; Plot training dataset
+(wiz:plot-lists (list (mapcar #'cadr *positive-set*)
+		      (mapcar #'cadr *negative-set*))
+		:x-lists (list (mapcar #'car *positive-set*)
+			       (mapcar #'car *negative-set*))
+		:style 'points)
+
 
 (defparameter predicted-positive-set
   (remove-if-not (lambda (datapoint)
@@ -220,27 +221,20 @@
     (format stream "Average validity: ~f~%" average-validity)
     average-validity))
 
+(defparameter a1a-train (read-libsvm-data "/home/wiz/tmp/a1a" 123 1605))
+(defparameter a1a-test (read-libsvm-data  "/home/wiz/tmp/a1a.t" 123 30956))
+(defparameter kernel (make-rbf-kernel :gamma (expt 2d0 -7d0)))
 
-;;; Read libsvm data
+;; Training
+(defparameter a1a-model (make-svm-model a1a-train kernel :c (expt 2d0 3d0)))
 
-(ql:quickload :cl-ppcre)
-(ql:quickload :parse-number)
+;; Test
+(svm-validation a1a-model a1a-test)
+;; (((-1.0d0 . 1.0d0) . 3186) ((1.0d0 . 1.0d0) . 4260) ((-1.0d0 . -1.0d0) . 21871)
+;;  ((1.0d0 . -1.0d0) . 1639))
+;; 84.413360899341d0
 
-(defun read-libsvm-data-from-file (data-path data-dimension data-size)
-  (let ((v (make-array data-size)))
-    (with-open-file (f data-path :direction :input)
-      (loop for i from 0 to (1- data-size) do
-	(let* ((read-data (read-line f))
-	       (dv (make-array (1+ data-dimension) :element-type 'double-float :initial-element 0d0))
-	       (d (ppcre:split "\\s+" read-data))
-	       (index-num-alist
-		(mapcar (lambda (index-num-pair-str)
-			  (let ((index-num-pair (ppcre:split #\: index-num-pair-str)))
-			    (list (parse-integer (car index-num-pair))
-				  (coerce (parse-number:parse-number (cadr index-num-pair)) 'double-float))))
-			(cdr d))))
-	  (setf (aref dv data-dimension) (coerce (parse-integer (car d)) 'double-float))
-	  (dolist (index-num-pair index-num-alist)
-	    (setf (aref dv (1- (car index-num-pair))) (cadr index-num-pair)))
-	  (setf (aref v i) dv))))
-    v))
+;; Search hyper parameter (gamma, C)
+(grid-search a1a-train a1a-test)
+;; # gamma	C	accuracy	time
+;; -7.0	        3.0	84.413360899341	2.997
