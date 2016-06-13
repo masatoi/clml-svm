@@ -1,6 +1,16 @@
 * clml-svm
   A SVM (Support Vector Machine) implementation which picked out from Common Lisp Machine Learning (CLML).
   Currently, this library support only Soft margin SVM for 2-class classification.
+
+** Installation
+In shell,
+#+BEGIN_SRC 
+$ cd ~/quicklisp/local-projects/
+#+END_SRC
+In Lisp,
+#+BEGIN_SRC lisp
+(ql:quickload :clml-svm)
+#+END_SRC
   
 ** Usage
 *** Dateset
