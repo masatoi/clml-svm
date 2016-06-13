@@ -5,7 +5,8 @@
 ** Installation
 In shell,
 #+BEGIN_SRC 
-$ cd ~/quicklisp/local-projects/
+cd ~/quicklisp/local-projects/
+git clone https://github.com/masatoi/clml-svm.git
 #+END_SRC
 In Lisp,
 #+BEGIN_SRC lisp
@@ -49,7 +50,7 @@ If C has sufficiently big value, the model is similar to Hard margin SVM.
 (defparameter model (make-svm-model training-vector kernel :C 4.0d0))
 #+END_SRC
 
-*** Predict
+*** Prediction
 You can now make prediction or validation for test dataset.
 'cross-validation' function performs N-fold cross validation.
 
