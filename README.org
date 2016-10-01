@@ -15,18 +15,19 @@ In Lisp,
   
 ** Usage
 *** Dateset
-First, you should construct a training vector which is simple-array and its elements are double-float typed array.
+First, you should construct a training vector which must be double-float typed array.
 A element of training-vector should contain datapoint values and a correct label at last element (+1.0 or -1.0).
 e.g.
 #+BEGIN_SRC common-lisp
-#(#(5.0d0 4.0d0 4.0d0 5.0d0 7.0d0 10.0d0 3.0d0 2.0d0 1.0d0 1.0d0)
-  #(6.0d0 8.0d0 8.0d0 1.0d0 3.0d0 4.0d0 3.0d0 7.0d0 1.0d0 1.0d0)
-  #(8.0d0 10.0d0 10.0d0 8.0d0 7.0d0 10.0d0 9.0d0 7.0d0 1.0d0 -1.0d0)
+#(#(5.0d0 4.0d0 4.0d0 5.0d0 7.0d0 10.0d0 3.0d0 2.0d0 1.0d0    +1.0d0)
+  #(6.0d0 8.0d0 8.0d0 1.0d0 3.0d0 4.0d0 3.0d0 7.0d0 1.0d0     +1.0d0)
+  #(8.0d0 10.0d0 10.0d0 8.0d0 7.0d0 10.0d0 9.0d0 7.0d0 1.0d0  -1.0d0)
   ...)
 #+END_SRC
 You can also use READ-LIBSVM-DATA function to make dateset.
 This function allows to read sparse expression used in LIBSVM datasets (http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/).
-e.g. if read from 'a1a data' (http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary.html#a1a), 
+
+e.g., in case of reading 'a1a data' (http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary.html#a1a), 
 
 #+BEGIN_SRC common-lisp
 (defparameter training-vector (read-libsvm-data "/path/to/a1a"))
@@ -34,8 +35,8 @@ e.g. if read from 'a1a data' (http://www.csie.ntu.edu.tw/~cjlin/libsvmtools/data
 #+END_SRC
 
 *** Kernel
-Secondly, you should select or define kernel-function. 
-Linear-kernel, RBF-kernel and polynomial-kernel are prepared.
+Secondly, you should select or define a kernel-function. 
+Several kernel-functions are prepared (Linear-kernel, RBF-kernel and polynomial-kernel).
 
 #+BEGIN_SRC common-lisp
 (defparameter kernel (make-rbf-kernel :gamma 0.0078125d0))
@@ -68,8 +69,8 @@ You can now make prediction or validation for test dataset.
 #+END_SRC
 
 *** Grid search to find hyperparameters
-As described above, in case of using RBF-kernel, you should determine meta-parameter gamma and C.
-Although it take a time, you can use 'grid-search' function which automatically determine gamma and C.
+When using RBF-kernel, you should determine meta-parameters gamma and C.
+Although it take a time, 'grid-search' function is available for automatic determination of gamma and C.
 
 #+BEGIN_SRC common-lisp
 (grid-search training-vector test-vector)
